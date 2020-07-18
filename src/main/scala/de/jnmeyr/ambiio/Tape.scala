@@ -5,8 +5,6 @@ import java.net.{DatagramPacket, DatagramSocket, SocketAddress}
 import cats.effect.{Resource, Sync}
 import org.openmuc.jrxtx.{SerialPort, SerialPortBuilder}
 
-import scala.language.postfixOps
-
 trait Tape[F[_]] {
 
   def unset: F[Unit]
@@ -22,24 +20,6 @@ object Tape {
   private val UNSET = Array[Byte](0x75, 0x41)
   private val SET_PIXEL = Array[Byte](0x73, 0x41)
   private val SET_PIXELS = Array[Byte](0x73, 0x4F)
-
-  class Printer[F[_] : Sync] private extends Tape[F] {
-
-    private def format(pixel: Pixel): String = s"${pixel.red},${pixel.green},${pixel.blue}"
-
-    override def unset: F[Unit] = Sync[F].delay(())
-
-    override def set(pixel: Pixel): F[Unit] = Sync[F].delay(println(format(pixel)))
-
-    override def set(pixels: Seq[Pixel]): F[Unit] = Sync[F].delay(println(pixels.map(format).mkString(" ")))
-
-  }
-
-  object Printer {
-
-    def apply[F[_] : Sync](): Printer[F] = new Printer[F]()
-
-  }
 
   class Serial[F[_] : Sync] private(port: SerialPort) extends Tape[F] {
 

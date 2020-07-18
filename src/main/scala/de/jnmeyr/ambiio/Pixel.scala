@@ -1,5 +1,7 @@
 package de.jnmeyr.ambiio
 
+import scala.util.Try
+
 case class Pixel(red: Byte,
                  green: Byte,
                  blue: Byte) {
@@ -44,6 +46,25 @@ object Pixel {
   def purple(purple: Double): Pixel = Pixel((255 * purple).toInt, 0, (255 * purple).toInt)
 
   val purple: Pixel = purple(1.0)
+
+  def toString(pixel: Pixel): String = s"${pixel.red},${pixel.green},${pixel.blue}"
+
+  def toString(pixels: Seq[Pixel]): String = pixels.map(toString).mkString(" ")
+
+  private val Regex = "^(0|[1-9][0-9]*),(0|[1-9][0-9]*),(0|[1-9][0-9]*)$".r
+
+  def fromString(string: String): Option[Pixel] = Try(
+    string.toLowerCase match {
+      case "black" => black
+      case "white" => white
+      case "red" => red
+      case "green" => green
+      case "blue" => blue
+      case "yellow" => yellow
+      case "purple" => purple
+      case Regex(red, green, blue) => Pixel(red.toInt, green.toInt, blue.toInt)
+    }
+  ).toOption
 
   implicit def orderingByBrightness: Ordering[Pixel] = (left: Pixel, right: Pixel) => (left.red + left.green + left.blue) - (right.red + right.green + right.blue)
 

@@ -1,9 +1,9 @@
 package de.jnmeyr.ambiio
 
+import de.jnmeyr.ambiio.Controller.Http
 import scopt.{OParser, OParserBuilder}
 
 import scala.concurrent.duration._
-import scala.language.postfixOps
 
 case class Arguments(controller: Controller.Arguments = Controller.Pipe.Arguments("/tmp/ambiio"),
                      consumers: List[Consumer.Arguments] = List.empty[Consumer.Arguments])
@@ -24,6 +24,21 @@ object Arguments {
         .action((path, arguments) => arguments.copy(controller = Controller.Pipe.Arguments(path)))
         .text("Path of the pipe controller file"),
 
+      opt[String]("controller.http.host")
+        .optional()
+        .action((host, arguments) => arguments.copy(controller = arguments.controller match {
+          case controller: Http.Arguments => controller.copy(host = host)
+          case _ => Controller.Http.Arguments(host = host)
+        }))
+        .text("Host of the http controller"),
+      opt[Int]("controller.http.port")
+        .optional()
+        .action((port, arguments) => arguments.copy(controller = arguments.controller match {
+          case controller: Http.Arguments => controller.copy(port = port)
+          case _ => Controller.Http.Arguments(port = port)
+        }))
+        .text("Port of the http controller"),
+
       opt[Int]("consumer.printer.pixels")
         .optional()
         .action((pixels, arguments) => arguments.copy(consumers = Consumer.Printer.Arguments(pixels) +: arguments.consumers))
@@ -31,7 +46,7 @@ object Arguments {
       opt[Duration]("consumer.printer.every")
         .optional()
         .action((every, arguments) => arguments.copy(consumers = arguments.consumers match {
-          case (consumer: Consumer.Printer.Arguments) :: consumers => consumer.copy(every = every.toMillis millis) +: consumers
+          case (consumer: Consumer.Printer.Arguments) :: consumers => consumer.copy(every = every.asInstanceOf[FiniteDuration]) +: consumers
           case _ => arguments.consumers
         }))
         .text("Frequency of the current printer consumer in milliseconds"),
@@ -43,7 +58,7 @@ object Arguments {
       opt[Duration]("consumer.serial.every")
         .optional()
         .action((every, arguments) => arguments.copy(consumers = arguments.consumers match {
-          case (consumer: Consumer.Serial.Arguments) :: consumers => consumer.copy(every = every.toMillis millis) +: consumers
+          case (consumer: Consumer.Serial.Arguments) :: consumers => consumer.copy(every = every.asInstanceOf[FiniteDuration]) +: consumers
           case _ => arguments.consumers
         }))
         .text("Frequency of the current serial consumer in milliseconds"),
@@ -62,7 +77,7 @@ object Arguments {
       opt[Duration]("consumer.socket.every")
         .optional()
         .action((every, arguments) => arguments.copy(consumers = arguments.consumers match {
-          case (consumer: Consumer.Socket.Arguments) :: consumers => consumer.copy(every = every.toMillis millis) +: consumers
+          case (consumer: Consumer.Socket.Arguments) :: consumers => consumer.copy(every = every.asInstanceOf[FiniteDuration]) +: consumers
           case _ => arguments.consumers
         }))
         .text("Frequency of the current socket consumer in milliseconds"),

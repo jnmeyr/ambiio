@@ -2,11 +2,13 @@ package de.jnmeyr.ambiio
 
 import cats.effect.{IO, Timer}
 import cats.implicits._
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration.{FiniteDuration, _}
-import scala.language.postfixOps
 
 object Producer {
+
+  private val logger = LoggerFactory.getLogger("Producer")
 
   private def runEvery(every: FiniteDuration)
                       (runs: List[IO[Unit]])
@@ -32,6 +34,8 @@ object Producer {
   def frequencies(everyOpt: Option[FiniteDuration] = None,
                   inOpt: Option[Pixel])
                  (implicit timer: Timer[IO]): Producer[IO] = (produce: Produce[IO], until: IO[Boolean]) => {
+    logger.info(s"Frequencies${everyOpt.fold("")(every => s" every $every")}${inOpt.fold("")(in => s" in $in")}")
+
     val aggregator = Sampler.Frequencies.Aggregator.Exponential(4)
 
     def run(sampler: Sampler[IO]): IO[Unit] = runEveryUntil(everyOpt.getOrElse(10 milliseconds), until)(for {
@@ -43,11 +47,17 @@ object Producer {
     Sampler.Audio[IO]().use(run)
   }
 
-  def glow(inOpt: Option[Pixel]): Producer[IO] = (produce: Produce[IO], _) => produce(Bridge.Values.Single(1.0, inOpt))
+  def glow(inOpt: Option[Pixel]): Producer[IO] = (produce: Produce[IO], _) => {
+    logger.info(s"Glow${inOpt.fold("")(in => s" in $in")}")
+
+    produce(Bridge.Values.Single(1.0, inOpt))
+  }
 
   def loudness(everyOpt: Option[FiniteDuration] = None,
                inOpt: Option[Pixel])
               (implicit timer: Timer[IO]): Producer[IO] = (produce: Produce[IO], until: IO[Boolean]) => {
+    logger.info(s"Loudness${everyOpt.fold("")(every => s" every $every")}${inOpt.fold("")(in => s" in $in")}")
+
     def run(sampler: Sampler[IO]): IO[Unit] = runEveryUntil(everyOpt.getOrElse(10 milliseconds), until)(for {
       samples <- sampler.getSamples
       Sampler.Channels(Seq(left), Seq(right)) = Sampler.getLoudness(samples)
@@ -57,11 +67,17 @@ object Producer {
     Sampler.Audio[IO]().use(run)
   }
 
-  val pause: Producer[IO] = (produce: Produce[IO], _) => produce(Bridge.Values.Single(0.0))
+  val pause: Producer[IO] = (produce: Produce[IO], _) => {
+    logger.info("Pause")
+
+    produce(Bridge.Values.Single(0.0))
+  }
 
   def pulse(everyOpt: Option[FiniteDuration] = None,
             inOpt: Option[Pixel])
            (implicit timer: Timer[IO]): Producer[IO] = (produce: Produce[IO], until: IO[Boolean]) => {
+    logger.info(s"Pulse${everyOpt.fold("")(every => s" every $every")}${inOpt.fold("")(in => s" in $in")}")
+
     val runs: List[IO[Unit]] = {
       val xs: List[Double] = Range(0, 100).map(_ / 100.0).toList
       val ys: List[Double] = xs.reverse

@@ -4,21 +4,24 @@ An effect engine in Scala using cats-effect.
 
 ## Version ##
 
-0.1
+0.2
 
 ## Arguments ##
 
 * --controller.pipe.path *path*: Path of the pipe controller file
 
+* --controller.http.host *host*: Host of the http controller
+* --controller.http.port *port*: Port of the http controller
+
 * --consumer.printer.pixels *pixels*: Number of pixels of the next printer consumer
-* --consumer.printer.every *every*: Frequency of the current printer consumer in milliseconds
+* --consumer.printer.every *every*: Frequency of the current printer consumer
 
 * --consumer.serial.pixels *pixels*: Number of pixels of the next serial consumer
-* --consumer.serial.every *every*: Frequency of the current serial consumer in milliseconds
+* --consumer.serial.every *every*: Frequency of the current serial consumer
 * --consumer.serial.name *name*: Name of the current serial consumer
 
 * --consumer.socket.pixels *pixels*: Number of pixels of the next socket consumer
-* --consumer.socket.every *every*: Frequency of the current socket consumer in milliseconds
+* --consumer.socket.every *every*: Frequency of the current socket consumer
 * --consumer.socket.host *host*: Host of the current socket consumer
 * --consumer.socket.port *port*: Port of the current socket consumer
 
@@ -27,18 +30,30 @@ An effect engine in Scala using cats-effect.
 
 ## Commands ##
 
-* "frequencies [every *every*] [in red green blue]"
-* "glow [in red green blue]"
-* "loudness [every *every*] [in red green blue]"
+* "frequencies [every *every*] [in *red*,*green*,*blue* | in *color*]"
+* "glow [in *red*,*green*,*blue* | in *color*]"
+* "loudness [every *every*] [in *red*,*green*,*blue* | in *color*]"
 * "pause"
-* "pulse [every *every*] [in red green blue]"
+* "pulse [every *every*] [in *red*,*green*,*blue* | in *color*]"
 * "stop"
 
-### Examples ###
-* `echo "frequencies every 10 in 0 255 255" > /tmp/ambiio`
+### Pipe ###
+
+Using an argument like `--controller.pipe.path /tmp/ambiio` will use a pipe controller.
+
+#### Examples ####
+* `echo "frequencies every 10ms in 0,255,255" > /tmp/ambiio`
+* `echo "glow in red" > /tmp/ambiio`
 * `echo "pause" > /tmp/ambiio`
-* `echo "glow in 255 0 0" > /tmp/ambiio`
-* `echo "stop" > /tmp/ambiio`
+
+### Http ###
+
+Using an argument like `--controller.http.port 8080` will use a http controller.
+
+#### Examples ####
+* `curl -X POST -d "frequencies every 10ms in 0,255,255" http://localhost:8080/command`
+* `curl -X GET http://localhost:8080/glow?in=red`
+* `curl -X GET http://localhost:8080/pause`
 
 ## License ##
 

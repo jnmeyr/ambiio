@@ -6,7 +6,6 @@ import org.apache.commons.collections4.queue.CircularFifoQueue
 import org.apache.commons.math3.transform.{DftNormalization, FastFourierTransformer, TransformType}
 
 import scala.jdk.CollectionConverters._
-import scala.language.postfixOps
 
 sealed trait Sampler[F[_]] {
 

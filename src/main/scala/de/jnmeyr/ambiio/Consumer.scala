@@ -3,11 +3,13 @@ package de.jnmeyr.ambiio
 import java.net.{InetSocketAddress, SocketAddress}
 
 import cats.effect.{IO, Timer}
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration.{FiniteDuration, _}
-import scala.language.postfixOps
 
 object Consumer {
+
+  private val logger = LoggerFactory.getLogger("Consumer")
 
   sealed trait Arguments {
 
@@ -22,16 +24,18 @@ object Consumer {
     case class Arguments(override val pixels: Int,
                          override val every: FiniteDuration = 0 millis) extends Consumer.Arguments
 
-    def apply(printer: Printer.Arguments)
+    def apply(arguments: Arguments)
              (implicit timer: Timer[IO]): Consumer[IO] = (consume: Consume[IO]) => {
-      def run(tape: Tape[IO]): IO[Unit] = for {
+      logger.info(s"Printer with $arguments")
+
+      def run(print: Seq[Pixel] => IO[Unit]): IO[Unit] = for {
         values <- consume
-        _ <- tape.set(values.toPixels(printer.pixels))
-        _ <- IO.sleep(printer.every)
-        _ <- run(tape)
+        _ <- print(values.toPixels(arguments.pixels))
+        _ <- IO.sleep(arguments.every)
+        _ <- run(print)
       } yield ()
 
-      run(Tape.Printer())
+      run(pixels => IO.delay(println(Pixel.toString(pixels))))
     }
 
   }
@@ -42,16 +46,18 @@ object Consumer {
                          override val every: FiniteDuration = 25 millis,
                          name: String = "") extends Consumer.Arguments
 
-    def apply(serial: Serial.Arguments)
+    def apply(arguments: Arguments)
              (implicit timer: Timer[IO]): Consumer[IO] = (consume: Consume[IO]) => {
+      logger.info(s"Serial with $arguments")
+
       def run(tape: Tape[IO]): IO[Unit] = for {
         values <- consume
-        _ <- tape.set(values.toPixels(serial.pixels))
-        _ <- IO.sleep(serial.every)
+        _ <- tape.set(values.toPixels(arguments.pixels))
+        _ <- IO.sleep(arguments.every)
         _ <- run(tape)
       } yield ()
 
-      Tape.Serial[IO](serial.name).use(run)
+      Tape.Serial[IO](arguments.name).use(run)
     }
 
   }
@@ -67,27 +73,27 @@ object Consumer {
 
     }
 
-    def apply(socket: Socket.Arguments)
+    def apply(arguments: Arguments)
              (implicit timer: Timer[IO]): Consumer[IO] = (consume: Consume[IO]) => {
+      logger.info(s"Socket with $arguments")
+
       def run(tape: Tape[IO]): IO[Unit] = for {
         values <- consume
-        _ <- tape.set(values.toPixels(socket.pixels))
-        _ <- IO.sleep(socket.every)
+        _ <- tape.set(values.toPixels(arguments.pixels))
+        _ <- IO.sleep(arguments.every)
         _ <- run(tape)
       } yield ()
 
-      Tape.Socket[IO](socket.address).use(run)
+      Tape.Socket[IO](arguments.address).use(run)
     }
 
   }
 
   def apply(arguments: Arguments)
-           (implicit timer: Timer[IO]): Consumer[IO] = {
-    arguments match {
-      case printer: Printer.Arguments => Printer(printer)
-      case serial: Serial.Arguments => Serial(serial)
-      case socket: Socket.Arguments => Socket(socket)
-    }
+           (implicit timer: Timer[IO]): Consumer[IO] = arguments match {
+    case printerArguments: Printer.Arguments => Printer(printerArguments)
+    case serialArguments: Serial.Arguments => Serial(serialArguments)
+    case socketArguments: Socket.Arguments => Socket(socketArguments)
   }
 
 }
