@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+    <title>Ambiio</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+</head>
+<body>
+    <div id="app">
+        <input name="duration" type="text" v-model="duration"/>
+        <input name="server" type="text" v-model="server"/>
+        <input name="topic" type="text" v-model="topic"/>
+        <input name="color" type="color" v-model="color"/>
+        <br/>
+        <button value="Frequencies" v-on:click="setNextCommand">Freq</button>
+        <button value="Glow" v-on:click="setNextCommand">Glow</button>
+        <button value="Loudness" v-on:click="setNextCommand">Loudness</button>
+        <button value="Pause" v-on:click="setNextCommand">Pause</button>
+        <button value="Pulse" v-on:click="setNextCommand">Pulse</button>
+        <button value="Telemetry" v-on:click="setTele">Telemetry</button>
+        <br/>
+        <p>{{ lastCommand }}</p>
+    </div>
+    <script type="text/javascript" src="index.js"></script>
+</body>
+</html>

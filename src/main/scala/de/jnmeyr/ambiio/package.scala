@@ -1,17 +1,33 @@
 package de.jnmeyr
 
+import cats.effect.{IO, Sync, Timer}
+import cats.implicits._
+
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.util.Try
 
 package object ambiio {
 
-  type Consume[F[_]] = F[Bridge.Values]
+  type Consume[F[_], T] = F[T]
 
-  type Consumer[F[_]] = Consume[F] => F[Unit]
+  type Consumer[F[_], T] = (Consume[F, T], F[Unit]) => F[Unit]
 
-  type Produce[F[_]] = Bridge.Values => F[Unit]
+  type Produce[F[_], T] = T => F[Unit]
 
-  type Producer[F[_]] = (Produce[F], F[Boolean]) => F[Unit]
+  type Producer[F[_], T] = Produce[F, T] => F[Unit]
+
+  def run[F[_] : Sync](f: F[Unit]): F[Unit] = for {
+    _ <- f
+    _ <- run(f)
+  } yield ()
+
+  def runEvery[F[_] : Sync](every: FiniteDuration)
+                           (f: F[Unit])
+                           (implicit timer: Timer[F]): F[Unit] = for {
+    _ <- f
+    _ <- timer.sleep(every)
+    _ <- runEvery(every)(f)
+  } yield ()
 
   object Implicits {
 
@@ -21,13 +37,13 @@ package object ambiio {
 
       def isFiniteDuration: Boolean = toFiniteDurationOpt.isDefined
 
-      def toFiniteDuration: FiniteDuration = toFiniteDurationOpt.get
+      def toFiniteDuration: FiniteDuration = toFiniteDurationOpt.getOrElse(throw new IllegalArgumentException(string))
 
-      def toPixelOpt: Option[Pixel] = Pixel.fromString(string)
+      def toPixelOpt: Option[Pixel] = Pixel.unapply(string)
 
       def isPixel: Boolean = toPixelOpt.isDefined
 
-      def toPixel: Pixel = toPixelOpt.get
+      def toPixel: Pixel = toPixelOpt.getOrElse(throw new IllegalArgumentException(string))
 
     }
 

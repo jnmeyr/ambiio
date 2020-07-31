@@ -1,25 +1,25 @@
 package de.jnmeyr.ambiio
 
+import scala.annotation.tailrec
 import scala.util.Try
 
-case class Pixel(red: Byte,
-                 green: Byte,
-                 blue: Byte) {
-
-  lazy val toBytes: Array[Byte] = Array(red, green, blue)
-
-  lazy val toInt: Int = red << 16 + green << 8 + blue
+case class Pixel(red: Int,
+                 green: Int,
+                 blue: Int) {
 
   def *(value: Double): Pixel = Pixel(
     ((red.toInt & 0XFF) * value).toByte,
     ((green.toInt & 0XFF) * value).toByte,
-    ((blue.toInt & 0XFF) * value).toByte)
+    ((blue.toInt & 0XFF) * value).toByte
+  )
+
+  def toBytes: Array[Byte] = Array(red.toByte, green.toByte, blue.toByte)
+
+  def toHexString: String = f"#$red%02x$green%02x$blue%02x"
 
 }
 
 object Pixel {
-
-  def apply(red: Int, green: Int, blue: Int): Pixel = Pixel(red.toByte, green.toByte, blue.toByte)
 
   def grey(value: Double): Pixel = Pixel((255 * value).toInt, (255 * value).toInt, (255 * value).toInt)
 
@@ -47,13 +47,19 @@ object Pixel {
 
   val purple: Pixel = purple(1.0)
 
-  def toString(pixel: Pixel): String = s"${pixel.red},${pixel.green},${pixel.blue}"
+  def unapply(bytes: Seq[Byte]): Option[Vector[Pixel]] = Try {
+    @tailrec
+    def fromBytes(bytes: Seq[Byte], pixels: Vector[Pixel] = Vector.empty): Vector[Pixel] = bytes match {
+      case Seq(red, green, blue) => pixels :+ Pixel(red, green, blue)
+      case Seq(red, green, blue, bytes@_*) => fromBytes(bytes, pixels :+ Pixel(red, green, blue))
+    }
 
-  def toString(pixels: Seq[Pixel]): String = pixels.map(toString).mkString(" ")
+    fromBytes(bytes, Vector.empty)
+  }.toOption
 
-  private val Regex = "^(0|[1-9][0-9]*),(0|[1-9][0-9]*),(0|[1-9][0-9]*)$".r
+  private val Regex = "^#([a-fA-F0-9]{2})([a-fA-F0-9]{2})([a-fA-F0-9]{2})$".r
 
-  def fromString(string: String): Option[Pixel] = Try(
+  def unapply(string: String): Option[Pixel] = Try(
     string.toLowerCase match {
       case "black" => black
       case "white" => white
@@ -62,10 +68,14 @@ object Pixel {
       case "blue" => blue
       case "yellow" => yellow
       case "purple" => purple
-      case Regex(red, green, blue) => Pixel(red.toInt, green.toInt, blue.toInt)
+      case Regex(red, green, blue) => Pixel(Integer.parseInt(red, 16), Integer.parseInt(green, 16), Integer.parseInt(blue, 16))
     }
   ).toOption
 
-  implicit def orderingByBrightness: Ordering[Pixel] = (left: Pixel, right: Pixel) => (left.red + left.green + left.blue) - (right.red + right.green + right.blue)
+  object Implicits {
+
+    implicit val BrightnessOrdering: Ordering[Pixel] = (left: Pixel, right: Pixel) => (left.red + left.green + left.blue) - (right.red + right.green + right.blue)
+
+  }
 
 }

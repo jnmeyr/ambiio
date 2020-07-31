@@ -4,17 +4,18 @@ An effect engine in Scala using cats-effect.
 
 ## Version ##
 
-0.2
+0.3
 
 ## Arguments ##
 
-* --controller.pipe.path *path*: Path of the pipe controller file
+* --controller.forever.command *command*: Command of the forever controller
 
 * --controller.http.host *host*: Host of the http controller
 * --controller.http.port *port*: Port of the http controller
 
+* --controller.pipe.path *path*: Path of the pipe controller file
+
 * --consumer.printer.pixels *pixels*: Number of pixels of the next printer consumer
-* --consumer.printer.every *every*: Frequency of the current printer consumer
 
 * --consumer.serial.pixels *pixels*: Number of pixels of the next serial consumer
 * --consumer.serial.every *every*: Frequency of the current serial consumer
@@ -25,35 +26,41 @@ An effect engine in Scala using cats-effect.
 * --consumer.socket.host *host*: Host of the current socket consumer
 * --consumer.socket.port *port*: Port of the current socket consumer
 
+* --consumer.telemetry.pixels *pixels*: Number of pixels of the next telemetry consumer
+* --consumer.telemetry.server *server*: Server of the current telemetry consumer
+* --consumer.telemetry.topic *topic*: Topic of the current telemetry consumer
+
 ### Example ###
 * `java -jar ambiio.jar --controller.pipe.path /tmp/ambiio --consumer.serial.pixels 60 --consumer.serial.every 25ms --consumer.serial.name /dev/ttyUSB0`
 
 ## Commands ##
 
-* "frequencies [every *every*] [in *red*,*green*,*blue* | in *color*]"
-* "glow [in *red*,*green*,*blue* | in *color*]"
-* "loudness [every *every*] [in *red*,*green*,*blue* | in *color*]"
+* "frequencies [every *every*] [in #*rrggbb* | in *color*]"
+* "glow [in #*rrggbb* | in *color*]"
+* "loudness [every *every*] [in #*rrggbb* | in *color*]"
 * "pause"
-* "pulse [every *every*] [in *red*,*green*,*blue* | in *color*]"
-* "stop"
+* "pulse [every *every*] [in #*rrggbb* | in *color*]"
+* "telemetry of *topic* from *server* 
 
 ### Pipe ###
 
 Using an argument like `--controller.pipe.path /tmp/ambiio` will use a pipe controller.
 
 #### Examples ####
-* `echo "frequencies every 10ms in 0,255,255" > /tmp/ambiio`
+* `echo "frequencies every 10ms in #00ffff" > /tmp/ambiio`
 * `echo "glow in red" > /tmp/ambiio`
 * `echo "pause" > /tmp/ambiio`
+* `echo "telemetry of ambiio from tcp://localhost:1883" > /tmp/ambiio`
 
 ### Http ###
 
 Using an argument like `--controller.http.port 8080` will use a http controller.
 
 #### Examples ####
-* `curl -X POST -d "frequencies every 10ms in 0,255,255" http://localhost:8080/command`
-* `curl -X GET http://localhost:8080/glow?in=red`
-* `curl -X GET http://localhost:8080/pause`
+* `curl -X POST -d "{ "Frequencies": { "everyOpt": "10ms", "inOpt": "#00ffff" } }" http://localhost:8080/command`
+* `curl -X POST -d "{ "Glow": { "inOpt": "red" } }" http://localhost:8080/command`
+* `curl -X POST -d "{ "Pause": {} }" http://localhost:8080/command`
+* `curl -X POST -d "{ "Telemetry": { "server": "tcp://localhost:1883", "topic": "ambiio" } }" http://localhost:8080/command`
 
 ## License ##
 

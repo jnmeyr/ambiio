@@ -1,14 +1,14 @@
 package de.jnmeyr.ambiio
 
-import de.jnmeyr.ambiio.Controller.Http
+import de.jnmeyr.ambiio.Controller.{Command, Http}
 import scopt.{OParser, OParserBuilder}
 
 import scala.concurrent.duration._
 
-case class Arguments(controller: Controller.Arguments = Controller.Pipe.Arguments("/tmp/ambiio"),
+case class Arguments(controller: Controller.Arguments = Controller.Forever.Arguments(Command.Pause),
                      consumers: List[Consumer.Arguments] = List.empty[Consumer.Arguments])
 
-object Arguments {
+object Arguments extends Command.Parser {
 
   private val builder: OParserBuilder[Arguments] = OParser.builder[Arguments]
 
@@ -19,10 +19,13 @@ object Arguments {
       programName("ambiio"),
       head("Ambiio", "0.1"),
 
-      opt[String]("controller.pipe.path")
+      opt[String]("controller.forever.command")
         .optional()
-        .action((path, arguments) => arguments.copy(controller = Controller.Pipe.Arguments(path)))
-        .text("Path of the pipe controller file"),
+        .action((command, arguments) => parse(command) match {
+          case Some(command) => arguments.copy(controller = Controller.Forever.Arguments(command))
+          case None => arguments
+        })
+        .text("Command of the forever controller"),
 
       opt[String]("controller.http.host")
         .optional()
@@ -39,17 +42,15 @@ object Arguments {
         }))
         .text("Port of the http controller"),
 
+      opt[String]("controller.pipe.path")
+        .optional()
+        .action((path, arguments) => arguments.copy(controller = Controller.Pipe.Arguments(path)))
+        .text("Path of the pipe controller file"),
+
       opt[Int]("consumer.printer.pixels")
         .optional()
         .action((pixels, arguments) => arguments.copy(consumers = Consumer.Printer.Arguments(pixels) +: arguments.consumers))
         .text("Number of pixels of the next printer consumer"),
-      opt[Duration]("consumer.printer.every")
-        .optional()
-        .action((every, arguments) => arguments.copy(consumers = arguments.consumers match {
-          case (consumer: Consumer.Printer.Arguments) :: consumers => consumer.copy(every = every.asInstanceOf[FiniteDuration]) +: consumers
-          case _ => arguments.consumers
-        }))
-        .text("Frequency of the current printer consumer in milliseconds"),
 
       opt[Int]("consumer.serial.pixels")
         .optional()
@@ -61,7 +62,7 @@ object Arguments {
           case (consumer: Consumer.Serial.Arguments) :: consumers => consumer.copy(every = every.asInstanceOf[FiniteDuration]) +: consumers
           case _ => arguments.consumers
         }))
-        .text("Frequency of the current serial consumer in milliseconds"),
+        .text("Frequency of the current serial consumer"),
       opt[String]("consumer.serial.name")
         .optional()
         .action((name, arguments) => arguments.copy(consumers = arguments.consumers match {
@@ -80,7 +81,7 @@ object Arguments {
           case (consumer: Consumer.Socket.Arguments) :: consumers => consumer.copy(every = every.asInstanceOf[FiniteDuration]) +: consumers
           case _ => arguments.consumers
         }))
-        .text("Frequency of the current socket consumer in milliseconds"),
+        .text("Frequency of the current socket consumer"),
       opt[String]("consumer.socket.host")
         .optional()
         .action((host, arguments) => arguments.copy(consumers = arguments.consumers match {
@@ -94,7 +95,26 @@ object Arguments {
           case (consumer: Consumer.Socket.Arguments) :: consumers => consumer.copy(port = port) +: consumers
           case _ => arguments.consumers
         }))
-        .text("Port of the current socket consumer")
+        .text("Port of the current socket consumer"),
+
+      opt[Int]("consumer.telemetry.pixels")
+        .optional()
+        .action((pixels, arguments) => arguments.copy(consumers = Consumer.Telemetry.Arguments(pixels) +: arguments.consumers))
+        .text("Number of pixels of the next telemetry consumer"),
+      opt[String]("consumer.telemetry.server")
+        .optional()
+        .action((server, arguments) => arguments.copy(consumers = arguments.consumers match {
+          case (consumer: Consumer.Telemetry.Arguments) :: consumers => consumer.copy(server = server) +: consumers
+          case _ => arguments.consumers
+        }))
+        .text("Server of the current telemetry consumer"),
+      opt[String]("consumer.telemetry.topic")
+        .optional()
+        .action((topic, arguments) => arguments.copy(consumers = arguments.consumers match {
+          case (consumer: Consumer.Telemetry.Arguments) :: consumers => consumer.copy(topic = topic) +: consumers
+          case _ => arguments.consumers
+        }))
+        .text("Topic of the current telemetry consumer")
     )
   }
 

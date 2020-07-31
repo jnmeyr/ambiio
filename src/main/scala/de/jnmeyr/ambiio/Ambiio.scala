@@ -1,47 +1,54 @@
 package de.jnmeyr.ambiio
 
-import de.jnmeyr.ambiio.Controller.Command
-import cats.effect.concurrent.Ref
 import cats.effect.{ExitCode, IO, IOApp}
 import cats.implicits._
+import de.jnmeyr.ambiio.Controller.Command
+
+import scala.concurrent.duration._
 
 object Ambiio extends IOApp {
 
-  private def runOnce(producer: Producer[IO])
-                     (produce: Produce[IO]): IO[Unit] = producer(produce, IO.pure(true))
+  def run(args: List[String]): IO[ExitCode] = {
 
-  private def runForever(producer: Producer[IO])
-                        (control: IO[Command],
-                         produce: Produce[IO]): IO[Unit] = for {
-    untilRef <- Ref.of[IO, Boolean](false)
-    producerFib <- producer(produce, untilRef.get).start
-    command <- control
-    _ <- untilRef.set(true)
-    _ <- producerFib.join
-    _ <- command match {
-      case Command.Frequencies(everyOpt, inOpt) =>
-        runForever(Producer.frequencies(everyOpt, inOpt))(control, produce)
-      case Command.Glow(inOpt) =>
-        runForever(Producer.glow(inOpt))(control, produce)
-      case Command.Loudness(everyOpt, inOpt) =>
-        runForever(Producer.loudness(everyOpt, inOpt))(control, produce)
-      case Command.Pulse(everyOpt, inOpt) =>
-        runForever(Producer.pulse(everyOpt, inOpt))(control, produce)
-      case Command.Pause =>
-        runForever(Producer.pause)(control, produce)
-      case Command.Stop =>
-        runOnce(Producer.pause)(produce)
+    def startProducer(controller: Controller[IO],
+                      bridge: Bridge[IO, Values]): IO[Unit] = {
+      def run(controller: Controller[IO],
+              command: Command,
+              produce: Produce[IO, Values]): IO[Unit] = {
+        val producer = Producer[IO](command)
+        for {
+          producerFib <- producer(produce).start
+          command <- controller()
+          _ <- producerFib.cancel
+          _ <- run(controller, command, produce)
+        } yield ()
+      }
+
+      for {
+        command <- controller()
+        produce <- bridge.produce
+        _ <- run(controller, command, produce)
+      } yield ()
     }
-  } yield ()
 
-  def run(args: List[String]): IO[ExitCode] = Arguments(args).fold(IO.pure(ExitCode.Error)) { arguments =>
-    for {
-      controller <- Controller(arguments.controller)
-      bridge <- Bridge.Limited()
-      consumerFibs <- arguments.consumers.map(Consumer(_)).map(consumer => bridge.consume.flatMap(consumer).start).sequence
-      _ <- bridge.produce.flatMap(runForever(Producer.glow(Some(Pixel.grey(0.1))))(controller.get, _))
-      _ <- consumerFibs.map(_.cancel).sequence_
-    } yield ExitCode.Success
+    def startConsumer(arguments: Consumer.Arguments,
+                      bridge: Bridge[IO, Values]): IO[Unit] = {
+      bridge.consume.flatMap { case (consume, stop) =>
+        val consumer = Consumer[IO](arguments)
+        val restart = stop *> timer.sleep(1 seconds) *> startConsumer(arguments, bridge)
+        consumer(consume, restart)
+      }
+    }
+
+    Arguments(args).fold(IO.pure(ExitCode.Error)) { arguments =>
+      for {
+        controller <- Controller(arguments.controller)
+        bridge <- Bridge.Limited[IO, Values]
+        consumerFibs <- arguments.consumers.map(startConsumer(_, bridge).start).sequence
+        _ <- startProducer(controller, bridge)
+        _ <- consumerFibs.map(_.cancel).sequence_
+      } yield ExitCode.Success
+    }
   }
 
 }

@@ -1,118 +1,51 @@
 package de.jnmeyr.ambiio
 
-import cats.effect.{ContextShift, IO}
-import cats.effect.concurrent.MVar
+import cats.effect.concurrent.{MVar, Ref}
+import cats.effect.{Concurrent, ContextShift, Sync}
 import cats.implicits._
 
-sealed trait Bridge {
+sealed trait Bridge[F[_], T] {
 
-  def consume: IO[Consume[IO]]
+  def consume: F[(Consume[F, T], F[Unit])]
 
-  def produce: IO[Produce[IO]]
+  def produce: F[Produce[F, T]]
 
 }
 
 object Bridge {
 
-  def worker(lastOpt: Option[Values] = None)
-            (from: MVar[IO, Values],
-             to: MVar[IO, Values]): IO[Unit] = for {
-    values <- from.take
-    _ <- if (lastOpt.contains(values)) IO.pure(()) else to.put(values)
-    _ <- worker(Some(values))(from, to)
+  def worker[F[_] : Sync, T](lastValueOpt: Option[T] = None)
+                            (fromVar: MVar[F, T],
+                             toVar: MVar[F, T]): F[Unit] = for {
+    value <- fromVar.take
+    _ <- if (lastValueOpt.contains(value)) Sync[F].pure(()) else toVar.tryTake *> toVar.put(value)
+    _ <- worker(Some(value))(fromVar, toVar)
   } yield ()
 
+  class Limited[F[_] : Concurrent, T] private(fromVarsRef: Ref[F, Vector[MVar[F, T]]])
+                                             (implicit contextShift: ContextShift[F]) extends Bridge[F, T] {
 
-  class Limited private(from: MVar[IO, Values])
-                       (implicit contextShift: ContextShift[IO]) extends Bridge {
+    def add(fromVar: MVar[F, T]): F[Unit] = fromVarsRef.update(fromVar +: _)
 
-    override def consume: IO[Consume[IO]] = for {
-      to <- MVar.empty[IO, Values]
-      _ <- worker()(from, to).start
-    } yield to.take
+    def remove(fromVar: MVar[F, T]): F[Unit] = fromVarsRef.update(_.filter(_ != fromVar))
 
-    override val produce: IO[Produce[IO]] = IO.delay { values: Values =>
-      from.tryTake >> from.put(values)
+    override def consume: F[(Consume[F, T], F[Unit])] = for {
+      fromVar <- MVar.empty[F, T]
+      toVar <- MVar.empty[F, T]
+      fib <- Concurrent[F].start(worker()(fromVar, toVar))
+      _ <- add(fromVar)
+    } yield (toVar.take, remove(fromVar) *> fib.cancel)
+
+    override val produce: F[Produce[F, T]] = Sync[F].delay { value =>
+      fromVarsRef.get.flatMap(_.map(fromVar => fromVar.tryTake *> fromVar.put(value)).sequence_)
     }
 
   }
 
   object Limited {
 
-    def apply()
-             (implicit contextShift: ContextShift[IO]): IO[Limited] = MVar.empty[IO, Values].map(new Limited(_))
-
-  }
-
-  sealed trait Values {
-
-    def toPixels(pixels: Int): Seq[Pixel]
-
-  }
-
-  object Values {
-
-    case class Single(pixel: Pixel) extends Values {
-
-      override def toPixels(pixels: Int): Seq[Pixel] = {
-        Range(0, pixels).map(_ => pixel)
-      }
-
-    }
-
-    object Single {
-
-      def apply(value: Double,
-                inOpt: Option[Pixel] = None): Single = new Single(inOpt.getOrElse(Pixel.white) * value)
-
-    }
-
-    case class Pair(left: Pixel,
-                    right: Pixel) extends Values {
-
-      override def toPixels(pixels: Int): Seq[Pixel] = {
-        Range(0, pixels / 2).map(_ => left) ++ Range(0, pixels / 2).map(_ => right)
-      }
-
-    }
-
-    object Pair {
-
-      def apply(left: Double,
-                right: Double,
-                inOpt: Option[Pixel]): Pair = new Pair(inOpt.getOrElse(Pixel.white) * left, inOpt.getOrElse(Pixel.white) * right)
-
-    }
-
-    case class Multiple(pixels: Seq[Pixel]) extends Values {
-
-      override def toPixels(pixels: Int): Seq[Pixel] = {
-        def decreased: Seq[Pixel] = {
-          import Pixel.orderingByBrightness
-
-          val of = (this.pixels.size / pixels.toFloat).toInt
-          val by = this.pixels.size - (of * pixels)
-          this.pixels.slice(by / 2, this.pixels.size - by / 2).sliding(of, of).map(_.max).toSeq
-        }
-
-        def increased: Seq[Pixel] = {
-          val by = pixels - this.pixels.size
-          val (start, end) = Range(0, by).map(_ => Pixel.black).splitAt(by / 2)
-          start ++ this.pixels ++ end
-        }
-
-        if (this.pixels.size > pixels) decreased
-        else if (this.pixels.size < pixels) increased
-        else this.pixels
-      }
-
-    }
-
-    object Multiple {
-
-      def apply(values: Seq[Double],
-                inOpt: Option[Pixel]): Multiple = new Multiple(values.map(inOpt.getOrElse(Pixel.white) * _))
-
+    def apply[F[_] : Concurrent, T](implicit contextShift: ContextShift[F]): F[Limited[F, T]] = {
+      Ref.of[F, Vector[MVar[F, T]]](Vector.empty).map(new Limited(_))
     }
 
   }
