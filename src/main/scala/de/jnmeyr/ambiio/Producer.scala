@@ -2,7 +2,6 @@ package de.jnmeyr.ambiio
 
 import cats.effect.{ConcurrentEffect, ContextShift, Sync, Timer}
 import cats.implicits._
-import de.jnmeyr.ambiio.Controller.Command
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration.{FiniteDuration, _}

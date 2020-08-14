@@ -24,7 +24,8 @@ object Tape {
   private val SET_PIXEL = Array[Byte](0x73, 0x41)
   private val SET_PIXELS = Array[Byte](0x73, 0x4F)
 
-  class Serial[F[_] : Sync] private(port: SerialPort) extends Tape[F] {
+  class Serial[F[_] : Sync] private(port: SerialPort)
+    extends Tape[F] {
 
     private def write(bytes: Array[Byte]): F[Unit] = Sync[F].delay {
       port.getOutputStream.write(bytes)
@@ -64,7 +65,9 @@ object Tape {
 
   }
 
-  class Socket[F[_] : Sync] private(socket: DatagramSocket, address: SocketAddress) extends Tape[F] {
+  class Socket[F[_] : Sync] private(socket: DatagramSocket,
+                                    address: SocketAddress)
+    extends Tape[F] {
 
     private def send(bytes: Array[Byte]): F[Unit] = Sync[F].delay {
       socket.send(new DatagramPacket(bytes, bytes.length, address))
@@ -98,7 +101,8 @@ object Tape {
   }
 
   class Telemetry[F[_] : Sync] private(client: MqttClient,
-                                       topic: String) extends Tape[F] {
+                                       topic: String)
+    extends Tape[F] {
 
     private def publish(bytes: Array[Byte]): F[Unit] = Sync[F].delay {
       client.publish(topic, bytes, 0, false)

@@ -1,6 +1,6 @@
 package de.jnmeyr.ambiio
 
-import de.jnmeyr.ambiio.Controller.{Command, Http}
+import de.jnmeyr.ambiio.Controller.Http
 import scopt.{OParser, OParserBuilder}
 
 import scala.concurrent.duration._
@@ -8,7 +8,8 @@ import scala.concurrent.duration._
 case class Arguments(controller: Controller.Arguments = Controller.Forever.Arguments(Command.Pause),
                      consumers: List[Consumer.Arguments] = List.empty[Consumer.Arguments])
 
-object Arguments extends Command.Parser {
+object Arguments
+  extends Command.Parser {
 
   private val builder: OParserBuilder[Arguments] = OParser.builder[Arguments]
 
@@ -17,7 +18,7 @@ object Arguments extends Command.Parser {
 
     OParser.sequence(
       programName("ambiio"),
-      head("Ambiio", "0.1"),
+      head("Ambiio", "0.4"),
 
       opt[String]("controller.forever.command")
         .optional()

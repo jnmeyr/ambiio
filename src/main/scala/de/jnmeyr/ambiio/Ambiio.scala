@@ -2,13 +2,18 @@ package de.jnmeyr.ambiio
 
 import cats.effect.{ExitCode, IO, IOApp}
 import cats.implicits._
-import de.jnmeyr.ambiio.Controller.Command
 
 import scala.concurrent.duration._
 
-object Ambiio extends IOApp {
+object Ambiio
+  extends IOApp {
 
   def run(args: List[String]): IO[ExitCode] = {
+
+    def startController(arguments: Controller.Arguments,
+                        bridge: Bridge[IO, Values]): IO[Controller[IO]] = {
+      Controller(arguments, bridge.timeout)
+    }
 
     def startProducer(controller: Controller[IO],
                       bridge: Bridge[IO, Values]): IO[Unit] = {
@@ -18,14 +23,14 @@ object Ambiio extends IOApp {
         val producer = Producer[IO](command)
         for {
           producerFib <- producer(produce).start
-          command <- controller()
+          command <- controller.getNextCommand
           _ <- producerFib.cancel
           _ <- run(controller, command, produce)
         } yield ()
       }
 
       for {
-        command <- controller()
+        command <- controller.getLastCommand
         produce <- bridge.produce
         _ <- run(controller, command, produce)
       } yield ()
@@ -42,8 +47,8 @@ object Ambiio extends IOApp {
 
     Arguments(args).fold(IO.pure(ExitCode.Error)) { arguments =>
       for {
-        controller <- Controller(arguments.controller)
-        bridge <- Bridge.Limited[IO, Values]
+        bridge <- Bridge[IO, Values]()
+        controller <- startController(arguments.controller, bridge)
         consumerFibs <- arguments.consumers.map(startConsumer(_, bridge).start).sequence
         _ <- startProducer(controller, bridge)
         _ <- consumerFibs.map(_.cancel).sequence_

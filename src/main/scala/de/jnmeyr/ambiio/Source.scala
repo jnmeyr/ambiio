@@ -31,7 +31,8 @@ object Source {
 
   class Telemetry[F[_] : Sync] private(client: MqttClient,
                                        topic: String,
-                                       bytesVar: MVar[F, Array[Byte]]) extends Source[F] {
+                                       bytesVar: MVar[F, Array[Byte]])
+    extends Source[F] {
 
     override def getValues: F[Values] = for {
       bytes <- bytesVar.take

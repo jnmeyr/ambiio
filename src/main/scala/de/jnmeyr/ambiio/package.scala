@@ -1,12 +1,14 @@
 package de.jnmeyr
 
-import cats.effect.{IO, Sync, Timer}
+import cats.effect.{Sync, Timer}
 import cats.implicits._
 
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.util.Try
 
 package object ambiio {
+
+  type Timeout[F[_]] = F[Unit]
 
   type Consume[F[_], T] = F[T]
 
@@ -31,7 +33,8 @@ package object ambiio {
 
   object Implicits {
 
-    implicit class RichString(val string: String) extends AnyVal {
+    implicit class RichString(val string: String)
+      extends AnyVal {
 
       def toFiniteDurationOpt: Option[FiniteDuration] = Try(Duration(string).asInstanceOf[FiniteDuration]).toOption
 

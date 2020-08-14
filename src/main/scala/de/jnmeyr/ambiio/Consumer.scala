@@ -27,7 +27,8 @@ object Consumer {
 
   object Printer {
 
-    case class Arguments(override val pixels: Int) extends Consumer.Arguments
+    case class Arguments(override val pixels: Int)
+      extends Consumer.Arguments
 
     def apply[F[_] : Sync](arguments: Arguments): Consumer[F, Values] = (consume: F[Values], stop) => {
       logger.info(s"Printer with $arguments started")
@@ -48,7 +49,8 @@ object Consumer {
 
     case class Arguments(override val pixels: Int,
                          every: FiniteDuration = 25 millis,
-                         name: String = "") extends Consumer.Arguments
+                         name: String = "")
+      extends Consumer.Arguments
 
     def apply[F[_] : Sync](arguments: Arguments)
                           (implicit timer: Timer[F]): Consumer[F, Values] = (consume: F[Values], stop) => {
@@ -72,7 +74,8 @@ object Consumer {
     case class Arguments(override val pixels: Int,
                          every: FiniteDuration = 25 millis,
                          host: String = "",
-                         port: Int = 0) extends Consumer.Arguments {
+                         port: Int = 0)
+      extends Consumer.Arguments {
 
       lazy val address: SocketAddress = new InetSocketAddress(host, port)
 
@@ -99,7 +102,8 @@ object Consumer {
 
     case class Arguments(override val pixels: Int,
                          server: String = "tcp://localhost:1883",
-                         topic: String = "ambiio") extends Consumer.Arguments
+                         topic: String = "ambiio")
+      extends Consumer.Arguments
 
     def apply[F[_] : Sync](arguments: Arguments): Consumer[F, Values] = (consume: F[Values], stop) => {
       logger.info(s"Telemetry with $arguments started")

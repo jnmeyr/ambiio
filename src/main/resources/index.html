@@ -3,23 +3,31 @@
 <head>
     <title>Ambiio</title>
     <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
+    <link type="text/css" rel="stylesheet" href="https://unpkg.com/bootstrap/dist/css/bootstrap.min.css"/>
+    <script src="https://unpkg.com/bootstrap-vue@latest/dist/bootstrap-vue.js"></script>
 </head>
 <body>
-    <div id="app">
-        <input name="duration" type="text" v-model="duration"/>
-        <input name="server" type="text" v-model="server"/>
-        <input name="topic" type="text" v-model="topic"/>
-        <input name="color" type="color" v-model="color"/>
-        <br/>
-        <button value="Frequencies" v-on:click="setNextCommand">Freq</button>
-        <button value="Glow" v-on:click="setNextCommand">Glow</button>
-        <button value="Loudness" v-on:click="setNextCommand">Loudness</button>
-        <button value="Pause" v-on:click="setNextCommand">Pause</button>
-        <button value="Pulse" v-on:click="setNextCommand">Pulse</button>
-        <button value="Telemetry" v-on:click="setTele">Telemetry</button>
-        <br/>
-        <p>{{ lastCommand }}</p>
+<div id="app">
+    <div>
+        <b-nav tabs justified>
+            <b-nav-item v-bind:active="isFrequencies" v-on:click="setNextCommand">Frequencies</b-nav-item>
+            <b-nav-item v-bind:active="isGlow" v-on:click="setNextCommand">Glow</b-nav-item>
+            <b-nav-item v-bind:active="isLoudness" v-on:click="setNextCommand">Loudness</b-nav-item>
+            <b-nav-item v-bind:active="isPause" v-on:click="setNextCommand">Pause</b-nav-item>
+            <b-nav-item v-bind:active="isPulse" v-on:click="setNextCommand">Pulse</b-nav-item>
+            <b-nav-item v-bind:active="isTelemetry" v-on:click="setNextCommand">Telemetry</b-nav-item>
+        </b-nav>
     </div>
-    <script type="text/javascript" src="index.js"></script>
+    <div style="text-align: center;">
+        <input name="color" type="color" v-if="needsColor" v-model="color"/>
+        <input name="duration" type="text" v-if="needsDuration" v-model="duration"/>
+        <input name="server" type="text" v-if="isTelemetry" v-model="server"/>
+        <input name="topic" type="text" v-if="isTelemetry" v-model="topic"/>
+    </div>
+</div>
+<script type="text/javascript" src="index.js"></script>
 </body>
 </html>

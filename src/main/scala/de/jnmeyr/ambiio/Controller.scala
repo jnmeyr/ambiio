@@ -3,12 +3,9 @@ package de.jnmeyr.ambiio
 import java.util.concurrent.Executors
 
 import cats.data.NonEmptyList
-import cats.effect.concurrent.MVar
+import cats.effect.concurrent.{MVar, Ref}
 import cats.effect.{ContextShift, IO, Resource, Sync, _}
 import cats.implicits._
-import de.jnmeyr.ambiio.Controller._
-import de.jnmeyr.ambiio.Implicits.RichString
-import io.circe._
 import io.circe.generic.auto._
 import io.circe.syntax._
 import org.http4s.CacheDirective.`no-cache`
@@ -20,19 +17,18 @@ import org.http4s.server.blaze.BlazeServerBuilder
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext.global
-import scala.concurrent.duration._
 import scala.io.Source
-import scala.util.parsing.combinator.{PackratParsers, RegexParsers}
-import scala.util.parsing.input.CharSequenceReader
 
-abstract class Controller[F[_] : Sync](lastCommandVar: MVar[F, Command]) {
+abstract class Controller[F[_] : Sync](protected val lastCommandRef: Ref[F, Command]) {
 
-  protected def getNextCommand: F[Command]
+  final def getLastCommand: F[Command] = lastCommandRef.get
 
-  private def setLastCommand(command: Command): F[Unit] = lastCommandVar.tryTake *> lastCommandVar.put(command)
+  private def setLastCommand(command: Command): F[Unit] = lastCommandRef.set(command)
 
-  final def apply(): F[Command] = for {
-    command <- getNextCommand
+  protected def getNextCommandImpl: F[Command]
+
+  final def getNextCommand: F[Command] = for {
+    command <- getNextCommandImpl
     _ <- setLastCommand(command)
   } yield command
 
@@ -44,126 +40,48 @@ object Controller {
 
   sealed trait Arguments
 
-  sealed trait Command
-
-  object Command {
-
-    case class Frequencies(everyOpt: Option[FiniteDuration],
-                           inOpt: Option[Pixel]) extends Command
-
-    case class Glow(inOpt: Option[Pixel]) extends Command
-
-    case class Loudness(everyOpt: Option[FiniteDuration],
-                        inOpt: Option[Pixel]) extends Command
-
-    case object Pause extends Command
-
-    case class Pulse(everyOpt: Option[FiniteDuration],
-                     inOpt: Option[Pixel]) extends Command
-
-    case class Telemetry(server: String,
-                         topic: String) extends Command
-
-    trait Parser {
-
-      private object Parser extends RegexParsers with PackratParsers {
-
-        override val skipWhitespace: Boolean = false
-
-        private val every: Parser[FiniteDuration] = " every " ~> """[^\s]+""".r ^? { case string if string.isFiniteDuration => string.toFiniteDuration }
-        private val in: Parser[Pixel] = " in " ~> """[^\s]+""".r ^? { case string if string.isPixel => string.toPixel }
-        private val topic: Parser[String] = " of " ~> """[^\s]+""".r ^^ { s => s }
-        private val server: Parser[String] = " from " ~> """[^\s]+""".r ^^ { s => s }
-
-        private lazy val frequencies: PackratParser[Command] = "frequencies" ~> opt(every) ~ opt(in) ^^ { case everyOpt ~ inOpt => Frequencies(everyOpt, inOpt) }
-        private lazy val glow: PackratParser[Command] = "glow" ~> opt(in) ^^ Glow
-        private lazy val loudness: PackratParser[Command] = "loudness" ~> opt(every) ~ opt(in) ^^ { case everyOpt ~ inOpt => Loudness(everyOpt, inOpt) }
-        private lazy val pause: PackratParser[Command] = "pause" ^^ { _ => Pause }
-        private lazy val pulse: PackratParser[Command] = "pulse" ~> opt(every) ~ opt(in) ^^ { case everyOpt ~ inOpt => Pulse(everyOpt, inOpt) }
-        private lazy val telemetry: PackratParser[Command] = "telemetry" ~> topic ~ server ^^ { case topic ~ server => Telemetry(server, topic) }
-
-        private lazy val command: PackratParser[Command] = frequencies | glow | loudness | pause | pulse | telemetry
-
-        def apply(string: String): Option[Command] = {
-          parseAll(phrase(command), new PackratReader(new CharSequenceReader(string))) match {
-            case Success(command, next) if next.atEnd => Some(command)
-            case _ => None
-          }
-        }
-
-      }
-
-      def parse(string: String): Option[Command] = Parser(string)
-
-    }
-
-    trait Encoders {
-
-      implicit val FiniteDurationEncoder: Encoder[FiniteDuration] = (finiteDuration: FiniteDuration) => {
-        Json.fromString(finiteDuration.toString)
-      }
-
-      implicit val PixelEncoder: Encoder[Pixel] = (pixel: Pixel) => {
-        Json.fromString(pixel.toHexString)
-      }
-
-      implicit val CommandEncoder: EntityEncoder[IO, Command] = jsonEncoderOf[IO, Command]
-
-    }
-
-    trait Decoders {
-
-      implicit final val FiniteDurationDecoder: Decoder[FiniteDuration] = (hCursor: HCursor) => for {
-        string <- hCursor.as[String]
-        finiteDuration <- string.toFiniteDurationOpt.toRight(DecodingFailure("FiniteDuration", hCursor.history))
-      } yield finiteDuration
-
-      implicit final val PixelDecoder: Decoder[Pixel] = (hCursor: HCursor) => for {
-        string <- hCursor.as[String]
-        pixel <- string.toPixelOpt.toRight(DecodingFailure("Pixel", hCursor.history))
-      } yield pixel
-
-      implicit val CommandDecoder: EntityDecoder[IO, Command] = jsonOf[IO, Command]
-
-    }
-
-  }
-
   class Forever[F[_] : Sync](arguments: Arguments)
                             (nextCommandVar: MVar[F, Command],
-                             lastCommandVar: MVar[F, Command]) extends Controller[F](lastCommandVar) {
+                             lastCommandRef: Ref[F, Command])
+    extends Controller[F](lastCommandRef) {
 
     logger.info(s"Forever with $arguments")
 
-    override protected def getNextCommand: F[Command] = nextCommandVar.take
+    override protected def getNextCommandImpl: F[Command] = nextCommandVar.take
 
   }
 
   object Forever {
 
-    case class Arguments(command: Command) extends Controller.Arguments
+    case class Arguments(command: Command)
+      extends Controller.Arguments
 
     def apply[F[_] : Concurrent](arguments: Arguments)
                                 (implicit contextShift: ContextShift[F]): F[Controller[F]] = for {
       nextCommandVar <- MVar.of[F, Command](arguments.command)
-      lastCommandVar <- MVar.empty[F, Command]
-    } yield new Forever[F](arguments)(nextCommandVar, lastCommandVar)
+      lastCommandRef <- Ref.of[F, Command](Command.Pause)
+    } yield new Forever[F](arguments)(nextCommandVar, lastCommandRef)
 
   }
 
   class Http[F[_] : Sync] private(arguments: Arguments)
                                  (nextCommandVar: MVar[F, Command],
-                                  lastCommandVar: MVar[F, Command]) extends Controller[F](lastCommandVar) {
+                                  lastCommandRef: Ref[F, Command])
+    extends Controller[F](lastCommandRef) {
 
     logger.info(s"Http with $arguments")
 
-    override protected def getNextCommand: F[Command] = nextCommandVar.take
+    override protected def getNextCommandImpl: F[Command] = nextCommandVar.take
 
   }
 
-  object Http extends Command.Encoders with Command.Decoders {
+  object Http
+    extends Command.Encoders
+      with Command.Decoders {
 
-    case class Arguments(host: String = "localhost", port: Int = 8080) extends Controller.Arguments
+    case class Arguments(host: String = "localhost",
+                         port: Int = 8080)
+      extends Controller.Arguments
 
     def apply(arguments: Arguments)
              (implicit contextShift: ContextShift[IO],
@@ -201,15 +119,17 @@ object Controller {
 
       for {
         nextCommandVar <- MVar.empty[IO, Command]
-        lastCommandVar <- MVar.empty[IO, Command]
-        _ <- server(lastCommandVar.read, nextCommandVar.put).start
-      } yield new Http[IO](arguments)(nextCommandVar, lastCommandVar)
+        lastCommandRef <- Ref.of[IO, Command](Command.Pause)
+        _ <- server(lastCommandRef.get, nextCommandVar.put).start
+      } yield new Http[IO](arguments)(nextCommandVar, lastCommandRef)
     }
 
   }
 
   class Pipe[F[_] : Sync] private(arguments: Pipe.Arguments)
-                                 (lastCommandVar: MVar[F, Command]) extends Controller[F](lastCommandVar) with Command.Parser {
+                                 (lastCommandRef: Ref[F, Command])
+    extends Controller[F](lastCommandRef)
+      with Command.Parser {
 
     logger.info(s"Pipe with $arguments")
 
@@ -221,10 +141,10 @@ object Controller {
       )
     }
 
-    override protected val getNextCommand: F[Command] = Sync[F].flatMap(read(arguments.path))(lines =>
+    override protected val getNextCommandImpl: F[Command] = Sync[F].flatMap(read(arguments.path))(lines =>
       lines.flatMap(parse).lastOption match {
         case Some(command) => Sync[F].pure(command)
-        case None => getNextCommand
+        case None => getNextCommandImpl
       }
     )
 
@@ -232,20 +152,46 @@ object Controller {
 
   object Pipe {
 
-    case class Arguments(path: String) extends Controller.Arguments
+    case class Arguments(path: String)
+      extends Controller.Arguments
 
     def apply[F[_] : Concurrent](arguments: Arguments): F[Controller[F]] = for {
-      lastCommandVar <- MVar.empty[F, Command]
-    } yield new Pipe[F](arguments)(lastCommandVar)
+      lastCommandRef <- Ref.of[F, Command](Command.Pause)
+    } yield new Pipe[F](arguments)(lastCommandRef)
 
   }
 
-  def apply(arguments: Arguments)
+  object WithTimeout {
+
+    def apply[F[_] : Concurrent](timeout: Timeout[F])
+                                (controller: Controller[F]): Controller[F] = new Controller[F](controller.lastCommandRef) {
+
+      private def nextCommandOpt(lastCommand: Command): Option[Command] = lastCommand match {
+        case _: Command.Frequencies | _: Command.Loudness => Some(Command.Pause)
+        case _ => None
+      }
+
+      override protected def getNextCommandImpl: F[Command] =
+        Concurrent[F].race(
+          controller.getNextCommandImpl,
+          for {
+            _ <- timeout
+            lastCommand <- controller.getLastCommand
+            nextCommand <- nextCommandOpt(lastCommand).fold[F[Command]](Async[F].never)(Sync[F].pure)
+          } yield nextCommand
+        ).map(_.fold(identity, identity))
+
+    }
+
+  }
+
+  def apply(arguments: Arguments,
+            timeout: Timeout[IO])
            (implicit contextShift: ContextShift[IO],
             timer: Timer[IO]): IO[Controller[IO]] = arguments match {
     case foreverArguments: Forever.Arguments => Forever[IO](foreverArguments)
-    case httpArguments: Http.Arguments => Http(httpArguments)
-    case pipeArguments: Pipe.Arguments => Pipe[IO](pipeArguments)
+    case httpArguments: Http.Arguments => Http(httpArguments).map(WithTimeout(timeout))
+    case pipeArguments: Pipe.Arguments => Pipe[IO](pipeArguments).map(WithTimeout(timeout))
   }
 
 }

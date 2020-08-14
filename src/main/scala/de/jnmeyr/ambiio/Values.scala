@@ -8,7 +8,8 @@ sealed trait Values {
 
 object Values {
 
-  case class Single(pixel: Pixel) extends Values {
+  case class Single(pixel: Pixel)
+    extends Values {
 
     override def toPixels(pixels: Int): Vector[Pixel] = {
       Vector.range(0, pixels).map(_ => pixel)
@@ -24,7 +25,8 @@ object Values {
   }
 
   case class Pair(left: Pixel,
-                  right: Pixel) extends Values {
+                  right: Pixel)
+    extends Values {
 
     override def toPixels(pixels: Int): Vector[Pixel] = {
       Vector.range(0, pixels / 2).map(_ => left) ++ Vector.range(0, pixels / 2).map(_ => right)
@@ -40,7 +42,8 @@ object Values {
 
   }
 
-  case class Multiple(pixels: Vector[Pixel]) extends Values {
+  case class Multiple(pixels: Vector[Pixel])
+    extends Values {
 
     override def toPixels(pixels: Int): Vector[Pixel] = {
       def decreased: Vector[Pixel] = {

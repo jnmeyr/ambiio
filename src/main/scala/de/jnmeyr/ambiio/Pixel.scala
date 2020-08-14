@@ -8,14 +8,14 @@ case class Pixel(red: Int,
                  blue: Int) {
 
   def *(value: Double): Pixel = Pixel(
-    ((red.toInt & 0XFF) * value).toByte,
-    ((green.toInt & 0XFF) * value).toByte,
-    ((blue.toInt & 0XFF) * value).toByte
+    ((red & 0XFF) * value).toByte,
+    ((green & 0XFF) * value).toByte,
+    ((blue & 0XFF) * value).toByte
   )
 
   def toBytes: Array[Byte] = Array(red.toByte, green.toByte, blue.toByte)
 
-  def toHexString: String = f"#$red%02x$green%02x$blue%02x"
+  def toHexString: String = f"#${red.toByte}%02x${green.toByte}%02x${blue.toByte}%02x"
 
 }
 
@@ -49,7 +49,8 @@ object Pixel {
 
   def unapply(bytes: Seq[Byte]): Option[Vector[Pixel]] = Try {
     @tailrec
-    def fromBytes(bytes: Seq[Byte], pixels: Vector[Pixel] = Vector.empty): Vector[Pixel] = bytes match {
+    def fromBytes(bytes: Seq[Byte],
+                  pixels: Vector[Pixel] = Vector.empty): Vector[Pixel] = bytes match {
       case Seq(red, green, blue) => pixels :+ Pixel(red, green, blue)
       case Seq(red, green, blue, bytes@_*) => fromBytes(bytes, pixels :+ Pixel(red, green, blue))
     }

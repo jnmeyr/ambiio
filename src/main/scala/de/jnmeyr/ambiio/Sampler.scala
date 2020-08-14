@@ -30,7 +30,8 @@ object Sampler {
   private val SAMPLES: Int = 1024
   private val LENGTH: Int = BYTES * CHANNELS * SAMPLES
 
-  case class Channels[C[_] : Functor, T] private(left: C[T], right: C[T]) {
+  case class Channels[C[_] : Functor, T] private(left: C[T],
+                                                 right: C[T]) {
 
     def apply[R](f: C[T] => C[R]): Channels[C, R] = Channels[C, R](f(left), f(right))
 
@@ -78,7 +79,8 @@ object Sampler {
 
     object Aggregator {
 
-      case class Linear(steps: Int) extends Aggregator {
+      case class Linear(steps: Int)
+        extends Aggregator {
 
         private val slide: Int = SAMPLES / CHANNELS / steps
 
@@ -86,7 +88,8 @@ object Sampler {
 
       }
 
-      case class Exponential(times: Int) extends Aggregator {
+      case class Exponential(times: Int)
+        extends Aggregator {
 
         private val slices: Vector[(Int, Int)] = {
           val buckets = Math.floor(Math.log10(SAMPLES / CHANNELS / times) / Math.log10(2.0)).toInt
@@ -134,7 +137,8 @@ object Sampler {
   }
 
   class Audio[F[_] : Sync] private(targetDataLine: TargetDataLine,
-                                   audioInputStream: AudioInputStream) extends Sampler[F] {
+                                   audioInputStream: AudioInputStream)
+    extends Sampler[F] {
 
     import Audio._
 
