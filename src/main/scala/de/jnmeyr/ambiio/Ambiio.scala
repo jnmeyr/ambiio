@@ -9,7 +9,6 @@ object Ambiio
   extends IOApp {
 
   def run(args: List[String]): IO[ExitCode] = {
-
     def startController(arguments: Controller.Arguments,
                         bridge: Bridge[IO, Values]): IO[Controller[IO]] = {
       Controller(arguments, bridge.timeout)

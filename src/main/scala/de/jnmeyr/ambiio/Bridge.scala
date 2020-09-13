@@ -38,7 +38,7 @@ object Bridge {
     extends Bridge[F, T] {
 
     override def timeout: Timeout[F] = for {
-      _ <- timer.sleep(10 minute)
+      _ <- timer.sleep(10 minutes)
       isTimeout <- isTimeoutRef.get <* isTimeoutRef.set(true)
       _ <- if (isTimeout) Sync[F].delay(logger.warn("Bridge timed out")) else timeout
     } yield ()

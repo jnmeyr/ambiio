@@ -4,7 +4,7 @@ An effect engine in Scala using cats-effect.
 
 ## Version ##
 
-0.4
+0.5
 
 ## Arguments ##
 

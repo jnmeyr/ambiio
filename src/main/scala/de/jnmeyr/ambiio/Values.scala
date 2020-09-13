@@ -47,11 +47,13 @@ object Values {
 
     override def toPixels(pixels: Int): Vector[Pixel] = {
       def decreased: Vector[Pixel] = {
-        import Pixel.Implicits.BrightnessOrdering
+        if (pixels <= 0) Vector.empty else {
+          import Pixel.Implicits.BrightnessOrdering
 
-        val of = (this.pixels.size / pixels.toFloat).toInt
-        val by = this.pixels.size - (of * pixels)
-        this.pixels.slice(by / 2, this.pixels.size - by / 2).sliding(of, of).map(_.max).toVector
+          val of = (this.pixels.size / pixels.toFloat).toInt
+          val by = this.pixels.size - (of * pixels)
+          this.pixels.slice(by / 2, this.pixels.size - by / 2).sliding(of, of).map(_.max).take(pixels).toVector
+        }
       }
 
       def increased: Vector[Pixel] = {

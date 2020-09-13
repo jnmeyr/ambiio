@@ -1,6 +1,6 @@
 organization := "de.jnmeyr"
 name := "ambiio"
-version := "0.4"
+version := "0.5"
 scalaVersion := "2.13.3"
 
 libraryDependencies += "com.github.scopt" %% "scopt" % "4.0.0-RC2"
@@ -24,6 +24,8 @@ libraryDependencies ++= Seq(
   "org.slf4j" % "slf4j-simple" % "1.7.5"
 )
 libraryDependencies += "org.typelevel" %% "cats-effect" % "2.1.4"
+
+libraryDependencies += "org.scalatest" %% "scalatest-wordspec" % "3.2.0" % "test"
 
 scalacOptions ++= Seq(
   "-deprecation",

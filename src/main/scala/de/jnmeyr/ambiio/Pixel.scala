@@ -8,9 +8,9 @@ case class Pixel(red: Int,
                  blue: Int) {
 
   def *(value: Double): Pixel = Pixel(
-    ((red & 0XFF) * value).toByte,
-    ((green & 0XFF) * value).toByte,
-    ((blue & 0XFF) * value).toByte
+    (red * value).toInt,
+    (green * value).toInt,
+    (blue * value).toInt
   )
 
   def toBytes: Array[Byte] = Array(red.toByte, green.toByte, blue.toByte)
@@ -51,6 +51,7 @@ object Pixel {
     @tailrec
     def fromBytes(bytes: Seq[Byte],
                   pixels: Vector[Pixel] = Vector.empty): Vector[Pixel] = bytes match {
+      case Seq() => pixels
       case Seq(red, green, blue) => pixels :+ Pixel(red, green, blue)
       case Seq(red, green, blue, bytes@_*) => fromBytes(bytes, pixels :+ Pixel(red, green, blue))
     }
