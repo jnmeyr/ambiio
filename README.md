@@ -1,10 +1,10 @@
 # Ambiio #
 
-An effect engine in Scala using cats-effect.
+An effect engine in Scala using cats-effect and optionally zio's IO monad.
 
 ## Version ##
 
-0.5
+0.6
 
 ## Arguments ##
 

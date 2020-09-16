@@ -4,13 +4,14 @@ import java.util.concurrent.Executors
 
 import cats.data.NonEmptyList
 import cats.effect.concurrent.{MVar, Ref}
-import cats.effect.{ContextShift, IO, Resource, Sync, _}
+import cats.effect.{ContextShift, Resource, Sync, _}
 import cats.implicits._
 import io.circe.generic.auto._
 import io.circe.syntax._
 import org.http4s.CacheDirective.`no-cache`
 import org.http4s._
 import org.http4s.circe._
+import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.{`Cache-Control`, `Location`}
 import org.http4s.implicits._
 import org.http4s.server.blaze.BlazeServerBuilder
@@ -83,45 +84,46 @@ object Controller {
                          port: Int = 8080)
       extends Controller.Arguments
 
-    def apply(arguments: Arguments)
-             (implicit contextShift: ContextShift[IO],
-              timer: Timer[IO]): IO[Controller[IO]] = {
-      import org.http4s.dsl.io._
+    def apply[F[_] : ConcurrentEffect](arguments: Arguments)
+                                      (implicit contextShift: ContextShift[F],
+                                       timer: Timer[F]): F[Controller[F]] = {
+      val dsl = Http4sDsl[F]
+      import dsl._
 
       val blocker = Blocker.liftExecutorService(Executors.newFixedThreadPool(4))
 
-      def server(get: IO[Command], set: Command => IO[Unit]): IO[Unit] = {
-        val root: PartialFunction[Request[IO], IO[Response[IO]]] = {
+      def server(get: F[Command], set: Command => F[Unit]): F[Unit] = {
+        val root: PartialFunction[Request[F], F[Response[F]]] = {
           case GET -> Root =>
             MovedPermanently()
               .map(_.putHeaders(`Location`(Uri(path = "/index.html"))))
         }
-        val command: PartialFunction[Request[IO], IO[Response[IO]]] = {
+        val command: PartialFunction[Request[F], F[Response[F]]] = {
           case GET -> Root / "command" =>
             get.flatMap(command => Ok(command.asJson))
           case request@POST -> Root / "command" =>
             request.as[Command].flatMap(set) *> Ok()
         }
-        val resource: PartialFunction[Request[IO], IO[Response[IO]]] = {
+        val resource: PartialFunction[Request[F], F[Response[F]]] = {
           case request =>
             StaticFile
-              .fromResource[IO](request.pathInfo, blocker, request.some)
+              .fromResource[F](request.pathInfo, blocker, request.some)
               .map(_.putHeaders(`Cache-Control`(NonEmptyList.of(`no-cache`()))))
               .getOrElseF(NotFound())
         }
-        val app = HttpRoutes.of[IO](root orElse command orElse resource).orNotFound
+        val app = HttpRoutes.of[F](root orElse command orElse resource).orNotFound
 
-        BlazeServerBuilder[IO](global)
+        BlazeServerBuilder[F](global)
           .bindHttp(host = arguments.host, port = arguments.port)
           .withHttpApp(app)
           .serve.compile.drain
       }
 
       for {
-        nextCommandVar <- MVar.empty[IO, Command]
-        lastCommandRef <- Ref.of[IO, Command](Command.Pause)
-        _ <- server(lastCommandRef.get, nextCommandVar.put).start
-      } yield new Http[IO](arguments)(nextCommandVar, lastCommandRef)
+        nextCommandVar <- MVar.empty[F, Command]
+        lastCommandRef <- Ref.of[F, Command](Command.Pause)
+        _ <- Concurrent[F].start(server(lastCommandRef.get, nextCommandVar.put))
+      } yield new Http[F](arguments)(nextCommandVar, lastCommandRef)
     }
 
   }
@@ -185,13 +187,13 @@ object Controller {
 
   }
 
-  def apply(arguments: Arguments,
-            timeout: Timeout[IO])
-           (implicit contextShift: ContextShift[IO],
-            timer: Timer[IO]): IO[Controller[IO]] = arguments match {
-    case foreverArguments: Forever.Arguments => Forever[IO](foreverArguments)
-    case httpArguments: Http.Arguments => Http(httpArguments).map(WithTimeout(timeout))
-    case pipeArguments: Pipe.Arguments => Pipe[IO](pipeArguments).map(WithTimeout(timeout))
+  def apply[F[_] : ConcurrentEffect](arguments: Arguments,
+                                     timeout: Timeout[F])
+                                    (implicit contextShift: ContextShift[F],
+                                     timer: Timer[F]): F[Controller[F]] = arguments match {
+    case foreverArguments: Forever.Arguments => Forever[F](foreverArguments)
+    case httpArguments: Http.Arguments => Http[F](httpArguments).map(WithTimeout(timeout))
+    case pipeArguments: Pipe.Arguments => Pipe[F](pipeArguments).map(WithTimeout(timeout))
   }
 
 }

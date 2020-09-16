@@ -1,9 +1,11 @@
 organization := "de.jnmeyr"
 name := "ambiio"
-version := "0.5"
+version := "0.6"
 scalaVersion := "2.13.3"
 
 libraryDependencies += "com.github.scopt" %% "scopt" % "4.0.0-RC2"
+libraryDependencies += "dev.zio" %% "zio" % "1.0.1"
+libraryDependencies += "dev.zio" %% "zio-interop-cats" % "2.1.4.0"
 libraryDependencies ++= Seq(
   "io.circe" %% "circe-generic" % "0.13.0",
   "io.circe" %% "circe-literal" % "0.13.0"
@@ -41,5 +43,5 @@ scalacOptions ++= Seq(
 lazy val root = (project in file("."))
   .enablePlugins(AssemblyPlugin)
   .settings(
-    mainClass in assembly := Some("de.jnmeyr.ambiio.Ambiio")
+    mainClass in assembly := Some("de.jnmeyr.ambiio.EffectAmbiio")
   )

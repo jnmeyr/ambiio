@@ -1,9 +1,9 @@
 package de.jnmeyr.ambiio
 
-import cats.effect.IO
+import cats.effect.Sync
 import de.jnmeyr.ambiio.Implicits.RichString
-import io.circe.generic.auto._
 import io.circe._
+import io.circe.generic.auto._
 import org.http4s.circe.{jsonEncoderOf, jsonOf}
 import org.http4s.{EntityDecoder, EntityEncoder}
 
@@ -82,7 +82,7 @@ object Command {
       Json.fromString(pixel.toHexString)
     }
 
-    implicit val CommandEncoder: EntityEncoder[IO, Command] = jsonEncoderOf[IO, Command]
+    implicit def CommandEncoder[F[_]]: EntityEncoder[F, Command] = jsonEncoderOf[F, Command]
 
   }
 
@@ -98,7 +98,7 @@ object Command {
       pixel <- string.toPixelOpt.toRight(DecodingFailure("Pixel", hCursor.history))
     } yield pixel
 
-    implicit val CommandDecoder: EntityDecoder[IO, Command] = jsonOf[IO, Command]
+    implicit def CommandDecoder[F[_] : Sync]: EntityDecoder[F, Command] = jsonOf[F, Command]
 
   }
 

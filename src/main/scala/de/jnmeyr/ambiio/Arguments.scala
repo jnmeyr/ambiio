@@ -18,7 +18,7 @@ object Arguments
 
     OParser.sequence(
       programName("ambiio"),
-      head("Ambiio", "0.5"),
+      head("Ambiio", "0.6"),
 
       opt[String]("controller.forever.command")
         .optional()
